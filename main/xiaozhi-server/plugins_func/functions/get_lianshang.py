@@ -54,9 +54,9 @@ def _parse_devicelist(data):
     roomstr = ""
     for room in data:
         if room["jack"] == 1:  #油桶
-            roomstr += f"{room['qr']}号设备已装了{room['massNum']}升{room['presets']['name']}，占设备容量的{room['dataValue']}%\n"
+            roomstr += f"{room['qr']}号设备已装了{room['massNum']}升{room['preset']['name']}，占设备容量的{room['dataValue']}%\n"
         else:
-            roomstr += f"{room['qr']}号设备已装了{room['dataValue']/1000.0}kg{room['presets']['name']}\n"
+            roomstr += f"{room['qr']}号设备已装了{room['dataValue']/1000.0}kg{room['preset']['name']}\n"
     return roomstr
 
 def fetch_room_info(room_number, api_host):
@@ -210,7 +210,7 @@ def set_room_device_onoff(room_number,device_type,onoff,api_host):
             "storageName": f"{room_number:03d}"
         }
         result = requests.post(url,json=data).json()
-        if result["code"] == 0:
+        if result["code"] == 200:
             return "指令已发送"
         else:
             return f"操作失败,msg={result['msg']}"
