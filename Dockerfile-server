@@ -13,7 +13,7 @@ COPY main/xiaozhi-server/requirements.txt .
 
 # 安装Python依赖，使用并行下载
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt --default-timeout=120 --retries 5 -i https://pypi.tuna.tsinghua.edu.cn/simple
+    pip install --no-cache-dir -r requirements.txt --default-timeout=120 --retries 5 -i https://mirrors.ustc.edu.cn/pypi/simple/
 
 # 第二阶段：生产镜像
 FROM python:3.10-slim
