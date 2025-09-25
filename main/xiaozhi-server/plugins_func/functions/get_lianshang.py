@@ -59,9 +59,9 @@ def _parse_devicelist(data):
             roomstr += f"{room['qr']}号设备已装了{room['dataValue']/1000.0}kg{room['preset']['name']}\n"
     return roomstr
 
-def fetch_room_info(room_number, api_host):
-    url = f"https://{api_host}/aiApi/situation/storage?producerId=211&storageName={room_number:03d}"
+def fetch_room_info(room_number, api_host, conn):
     try:
+        url = f"https://{api_host}/aiApi/situation/storage?producerId={conn.headers.get('producer-id')}&storageName={room_number:03d}"
         data = requests.get(url, headers=HEADERS).json()['data']
         if len(data) == 0:
             return "没找到哦，请检查危废间编号"
@@ -76,7 +76,7 @@ def fetch_room_info(room_number, api_host):
 @register_function("get_room", GET_ROOM_FUNCTION_DESC, ToolType.SYSTEM_CTL)
 def get_room(conn, room_number: int = 0):
     api_host = conn.config["plugins"]["get_lianshang"].get("api_host", "api.scwego.com")
-    infostr = fetch_room_info(room_number, api_host)
+    infostr = fetch_room_info(room_number, api_host, conn)
 
     return ActionResponse(Action.RESPONSE, infostr, infostr)
 
@@ -101,9 +101,9 @@ GET_DEVICE_FUNCTION_DESC = {
     },
 }
 
-def fetch_device_info(device_number, api_host):
-    url = f"https://{api_host}/aiApi/situation/device?producerId=211&qr={device_number}"
+def fetch_device_info(device_number, api_host, conn):
     try:
+        url = f"https://{api_host}/aiApi/situation/device?producerId={conn.headers.get('producer-id')}&qr={device_number}"
         data = requests.get(url, headers=HEADERS).json()['data']
         if len(data) == 0:
             return "没找到哦，请检查设备编号"
@@ -118,7 +118,7 @@ def fetch_device_info(device_number, api_host):
 @register_function("get_device", GET_DEVICE_FUNCTION_DESC, ToolType.SYSTEM_CTL)
 def get_device(conn, device_number: int = 0):
     api_host = conn.config["plugins"]["get_lianshang"].get("api_host", "api.scwego.com")
-    infostr = fetch_device_info(device_number, api_host)
+    infostr = fetch_device_info(device_number, api_host, conn)
 
     return ActionResponse(Action.RESPONSE, infostr, infostr)
 
@@ -143,12 +143,12 @@ GET_AIR_FUNCTION_DESC = {
     },
 }
 
-def fetch_air_info(room_number, api_host):
-    url = f"https://{api_host}/aiApi/mgTerminal/sensorData?producerId=211&storageName={room_number:03d}&type=12&pageSize=1"
+def fetch_air_info(room_number, api_host, conn):
     try:
+        url = f"https://{api_host}/aiApi/mgTerminal/sensorData?producerId={conn.headers.get('producer-id')}&storageName={room_number:03d}&type=12&pageSize=1"
         data = requests.get(url, headers=HEADERS).json()['data']
         if len(data) == 0:
-            return "没找到哦，请检查危废间编号"
+            return "没找到该危废间的空气质量信息"
         infostr = f"{room_number}号危废间空气质量如下:\n{data}"
         infostr += "总结一下上面的空气质量数据，只用报TVOC的量"
     except Exception as e:
@@ -160,7 +160,7 @@ def fetch_air_info(room_number, api_host):
 @register_function("get_air", GET_AIR_FUNCTION_DESC, ToolType.SYSTEM_CTL)
 def get_air(conn, room_number: int = 0):
     api_host = conn.config["plugins"]["get_lianshang"].get("api_host", "api.scwego.com")
-    infostr = fetch_air_info(room_number, api_host)
+    infostr = fetch_air_info(room_number, api_host, conn)
 
     # return ActionResponse(Action.RESPONSE, infostr, infostr)
     return ActionResponse(Action.REQLLM, infostr, None)
@@ -198,13 +198,13 @@ SET_DEVICE_ONOFF_FUNCTION_DESC = {
     },
 }
 
-def set_room_device_onoff(room_number,device_type,onoff,api_host):
+def set_room_device_onoff(room_number,device_type,onoff,api_host,conn):
     url = f"https://{api_host}/aiApi/deviceMod/command"
     try:
         if device_type not in [16]:
             return "该设备不支持语音控制"
         data = {
-            "producerId": 211,
+            "producerId": conn.headers.get('producer-id'),
             "type": device_type,
             "disjunctor": onoff,
             "storageName": f"{room_number:03d}"
@@ -221,6 +221,6 @@ def set_room_device_onoff(room_number,device_type,onoff,api_host):
 @register_function("set_device_onoff", SET_DEVICE_ONOFF_FUNCTION_DESC, ToolType.SYSTEM_CTL)
 def set_device_onoff(conn, room_number,device_type,onoff):
     api_host = conn.config["plugins"]["get_lianshang"].get("api_host", "api.scwego.com")
-    infostr = set_room_device_onoff(room_number,device_type,onoff,api_host)
+    infostr = set_room_device_onoff(room_number,device_type,onoff,api_host,conn)
 
     return ActionResponse(Action.RESPONSE, infostr, infostr)

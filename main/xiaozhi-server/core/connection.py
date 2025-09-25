@@ -165,6 +165,33 @@ class ConnectionHandler:
             # 获取并验证headers
             self.headers = dict(ws.request.headers)
 
+            # 对producer-id进行基本验证
+            if "producer-id" in self.headers:
+                if self.headers["producer-id"] == "0":
+                    await ws.send(                
+                        json.dumps(
+                        {
+                            "type": "alert",
+                            "status": "错误",
+                            "message": "请在语音助手的配网页面检查\"产废方ID\"是否填写",
+                            "emotion": "thinking",
+                        }
+                    ))
+                    await self.close(ws)
+                    return
+            else:
+                await ws.send(                
+                    json.dumps(
+                    {
+                        "type": "alert",
+                        "status": "错误",
+                        "message": "检查固件版本",
+                        "emotion": "thinking",
+                    }
+                ))
+                await self.close(ws)
+                return
+            
             if self.headers.get("device-id", None) is None:
                 # 尝试从 URL 的查询参数中获取 device-id
                 from urllib.parse import parse_qs, urlparse
