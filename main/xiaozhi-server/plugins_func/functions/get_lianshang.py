@@ -1,4 +1,6 @@
 import requests
+import re
+import traceback
 from config.logger import setup_logging
 from plugins_func.register import register_function, ToolType, ActionResponse, Action
 from core.utils.util import get_ip_info
@@ -9,12 +11,11 @@ logger = setup_logging()
 """
 /aiApi/situation/device?producerId=11&qr=CXR101079  get  查询设备
 /aiApi/situation/storage?producerId=11&storageName=001  get  查询暂存间
-/aiApi/mgTerminal/sensorData?producerId=211&storageName=001&terminalNo=00000000203&pageSize=20 产废方传感器数据
+/aiApi/mgTerminal/sensorData?producerId=211&storageName=001&type=12&pageSize=20 产废方传感器数据
     产废方ID producerId
-    传感器类型type 1电流2空气质量3噪音4可燃气体5地磅 页
+    传感器类型type  
     危废间名称storageName
-    终端编号terminalNo
-    面数据大小pageSize 不传默认25
+    页面数据大小pageSize 不传默认25
 /aiApi/deviceMod/command  post请求 下发传感器命令 
     产废方ID producerId
     传感器设备类型type 设备类型 1 液位桶 2称重贮存桶  11电流12空气质量；13噪音 14可燃气体 15（BM01）称重模块 16风机
@@ -50,13 +51,30 @@ GET_ROOM_FUNCTION_DESC = {
     },
 }
 
-def _parse_devicelist(data):
+def extract_chinese(text):
+    # 匹配中文字符，Unicode范围：\u4e00-\u9fa5
+    chinese_pattern = re.compile(r'[\u4e00-\u9fa5]+')
+    result = chinese_pattern.findall(text)
+    return result[0] if result else ""
+
+def _parse_devicelist(data,api_host,conn):
     roomstr = ""
+    url = f"https://{api_host}/aiApi/sysDictType/biz_device_model"
+    sensorNameDict = requests.get(url, headers=HEADERS).json().get('data',[])
     for room in data:
-        if room["jack"] == 1:  #油桶
+        if room["jack"] == 1:  #油桶1号接口
             roomstr += f"{room['qr']}号设备已装了{room['massNum']}升{room['preset']['name']}，占设备容量的{room['dataValue']}%\n"
-        else:
+        elif room["jack"] == 2 or room["jack"] == 4: #称重2，3号接口
             roomstr += f"{room['qr']}号设备已装了{room['dataValue']/1000.0}kg{room['preset']['name']}\n"
+        elif room["jack"] == 8:  #传感器4号接口
+            if room.get("modeType",None) == 15:
+                roomstr += f"{room['qr']}号设备已装了{room['dataValue']/1000.0}kg{room['preset']['name']}\n"
+            else: 
+                for item in sensorNameDict:
+                    if str(room.get("modeType",None)) == item["dictValue"] and 'sensorValue' in room:
+                        roomstr+= f"{room['qr']}号{extract_chinese(item['dictLabel'])}传感器：{room['sensorValue']}\n"
+                        break
+
     return roomstr
 
 def fetch_room_info(room_number, api_host, conn):
@@ -66,9 +84,10 @@ def fetch_room_info(room_number, api_host, conn):
         if len(data) == 0:
             return "没找到哦，请检查危废间编号"
         infostr = f"{data[0]['producerName']}的{room_number}号危废间有{len(data)}个设备\n"
-        infostr += _parse_devicelist(data)
+        infostr += _parse_devicelist(data,api_host,conn)
     except Exception as e:
         logger.bind(tag=TAG).error(f"危废间信息格式有误: {e}")
+        traceback.print_exc()
         return f"危废间信息格式有误 {e}"
 
     return infostr
@@ -108,9 +127,10 @@ def fetch_device_info(device_number, api_host, conn):
         if len(data) == 0:
             return "没找到哦，请检查设备编号"
         infostr = f"我在{data[0]['producerName']}找到了{len(data)}个设备\n"
-        infostr += _parse_devicelist(data)
+        infostr += _parse_devicelist(data,api_host,conn)
     except Exception as e:
         logger.bind(tag=TAG).error(f"危废间信息格式有误: {e}")
+        traceback.print_exc()
         return f"危废间信息格式有误 {e}"
 
     return infostr
